@@ -12,14 +12,16 @@ void testApp::setup() {
 	isCPBkgnd		= true;
 	isMasking		= true;
 
-	nearThreshold = 500;
-	farThreshold  = 1000;
+	nearThreshold = 2000;
+	farThreshold  = 3000;
 
 	filterFactor = 0.1f;
 
 	setupRecording();
 
 	ofBackground(0, 0, 0);
+
+    syphonServer.setName("KinectDepth");
 
 }
 
@@ -35,44 +37,12 @@ void testApp::setupRecording(string _filename) {
 	recordDepth.setup(&recordContext);
 	recordImage.setup(&recordContext);
 
-	recordUser.setup(&recordContext);
-	recordUser.setSmoothing(filterFactor);				// built in openni skeleton smoothing...
-	recordUser.setUseMaskPixels(isMasking);
-	recordUser.setUseCloudPoints(isCloud);
-	recordUser.setMaxNumberOfUsers(2);					// use this to set dynamic max number of users (NB: that a hard upper limit is defined by MAX_NUMBER_USERS in ofxUserGenerator)
-
 	recordHandTracker.setup(&recordContext, 4);
 	recordHandTracker.setSmoothing(filterFactor);		// built in openni hand track smoothing...
 	recordHandTracker.setFilterFactors(filterFactor);	// custom smoothing/filtering (can also set per hand with setFilterFactor)...set them all to 0.1f to begin with
 
 	recordContext.toggleRegisterViewport();
 	recordContext.toggleMirror();
-
-	oniRecorder.setup(&recordContext, ONI_STREAMING);
-	//oniRecorder.setup(&recordContext, ONI_CYCLIC, 60);
-	//read the warning in ofxOpenNIRecorder about memory usage with ONI_CYCLIC recording!!!
-
-}
-
-void testApp::setupPlayback(string _filename) {
-
-	playContext.shutdown();
-	playContext.setupUsingRecording(ofToDataPath(_filename));
-	playDepth.setup(&playContext);
-	playImage.setup(&playContext);
-
-	playUser.setup(&playContext);
-	playUser.setSmoothing(filterFactor);				// built in openni skeleton smoothing...
-	playUser.setUseMaskPixels(isMasking);
-	playUser.setUseCloudPoints(isCloud);
-
-	playHandTracker.setup(&playContext, 4);
-	playHandTracker.setSmoothing(filterFactor);			// built in openni hand track smoothing...
-	playHandTracker.setFilterFactors(filterFactor);		// custom smoothing/filtering (can also set per hand with setFilterFactor)...set them all to 0.1f to begin with
-
-	playContext.toggleRegisterViewport();
-	playContext.toggleMirror();
-
 }
 
 //--------------------------------------------------------------
@@ -93,37 +63,6 @@ void testApp::update(){
 		depthRangeMask.setFromPixels(recordDepth.getDepthPixels(nearThreshold, farThreshold),
 									 recordDepth.getWidth(), recordDepth.getHeight(), OF_IMAGE_GRAYSCALE);
 
-		// update tracking/recording nodes
-		if (isTracking) recordUser.update();
-		if (isRecording) oniRecorder.update();
-
-		// demo getting pixels from user gen
-		if (isTracking && isMasking) {
-			allUserMasks.setFromPixels(recordUser.getUserPixels(), recordUser.getWidth(), recordUser.getHeight(), OF_IMAGE_GRAYSCALE);
-			user1Mask.setFromPixels(recordUser.getUserPixels(1), recordUser.getWidth(), recordUser.getHeight(), OF_IMAGE_GRAYSCALE);
-			user2Mask.setFromPixels(recordUser.getUserPixels(2), recordUser.getWidth(), recordUser.getHeight(), OF_IMAGE_GRAYSCALE);
-		}
-
-	} else {
-
-		// update all nodes
-		playContext.update();
-		playDepth.update();
-		playImage.update();
-
-		// demo getting depth pixels directly from depth gen
-		depthRangeMask.setFromPixels(playDepth.getDepthPixels(nearThreshold, farThreshold),
-									 playDepth.getWidth(), playDepth.getHeight(), OF_IMAGE_GRAYSCALE);
-
-		// update tracking/recording nodes
-		if (isTracking) playUser.update();
-
-		// demo getting pixels from user gen
-		if (isTracking && isMasking) {
-			allUserMasks.setFromPixels(playUser.getUserPixels(), playUser.getWidth(), playUser.getHeight(), OF_IMAGE_GRAYSCALE);
-			user1Mask.setFromPixels(playUser.getUserPixels(1), playUser.getWidth(), playUser.getHeight(), OF_IMAGE_GRAYSCALE);
-			user2Mask.setFromPixels(playUser.getUserPixels(2), playUser.getWidth(), playUser.getHeight(), OF_IMAGE_GRAYSCALE);
-		}
 	}
 }
 
@@ -137,47 +76,30 @@ void testApp::draw(){
 
 	if (isLive) {
 
-		recordDepth.draw(0,0,640,480);
-		recordImage.draw(640, 0, 640, 480);
+		//recordDepth.draw(0,0,640,480);
+		//recordImage.draw(640, 0, 640, 480);
 
-		depthRangeMask.draw(0, 480, 320, 240);	// can use this with openCV to make masks, find contours etc when not dealing with openNI 'User' like objects
+		depthRangeMask.draw(0, 0, 640, 480);	// can use this with openCV to make masks, find contours etc when not dealing with openNI 'User' like objects
+
+        //only show the kinect mask without the rest
+        syphonServer.publishScreen();
 
 		if (isTracking) {
-			recordUser.draw();
 
 			if (isMasking) drawMasks();
-			if (isCloud) drawPointCloud(&recordUser, 1);	// 0 gives you all point clouds; use userID to see point clouds for specific users
 
 		}
 		if (isTrackingHands)
 			recordHandTracker.drawHands();
 
-	} else {
-
-		playDepth.draw(0,0,640,480);
-		playImage.draw(640, 0, 640, 480);
-
-		depthRangeMask.draw(0, 480, 320, 240);	// can use this with openCV to make masks, find contours etc when not dealing with openNI 'User' like objects
-
-		if (isTracking) {
-			playUser.draw();
-
-			if (isMasking) drawMasks();
-			if (isCloud) drawPointCloud(&playUser, 0);	// 0 gives you all point clouds; use userID to see point clouds for specific users
-
-		}
-		if (isTrackingHands)
-			playHandTracker.drawHands();
 	}
-
+        
 	glPopMatrix();
 
 	ofSetColor(255, 255, 0);
 
 	string statusPlay		= (string)(isLive ? "LIVE STREAM" : "PLAY STREAM");
 	string statusRec		= (string)(!isRecording ? "READY" : "RECORDING");
-	string statusSkeleton	= (string)(isTracking ? "TRACKING USERS: " + (string)(isLive ? ofToString(recordUser.getNumberOfTrackedUsers()) : ofToString(playUser.getNumberOfTrackedUsers())) + "" : "NOT TRACKING USERS");
-	string statusSmoothSkel = (string)(isLive ? ofToString(recordUser.getSmoothing()) : ofToString(playUser.getSmoothing()));
 	string statusHands		= (string)(isTrackingHands ? "TRACKING HANDS: " + (string)(isLive ? ofToString(recordHandTracker.getNumTrackedHands()) : ofToString(playHandTracker.getNumTrackedHands())) + ""  : "NOT TRACKING");
 	string statusFilter		= (string)(isFiltering ? "FILTERING" : "NOT FILTERING");
 	string statusFilterLvl	= ofToString(filterFactor);
@@ -207,8 +129,6 @@ void testApp::draw(){
 	msg
 	<< "    s : start/stop recording  : " << statusRec << endl
 	<< "    p : playback/live streams : " << statusPlay << endl
-	<< "    t : skeleton tracking     : " << statusSkeleton << endl
-	<< "( / ) : smooth skely (openni) : " << statusSmoothSkel << endl
 	<< "    h : hand tracking         : " << statusHands << endl
 	<< "    f : filter hands (custom) : " << statusFilter << endl
 	<< "[ / ] : filter hands factor   : " << statusFilterLvl << endl
@@ -219,10 +139,9 @@ void testApp::draw(){
 	<< "- / + : nearThreshold         : " << ofToString(nearThreshold) << endl
 	<< "< / > : farThreshold          : " << ofToString(farThreshold) << endl
 	<< endl
-	<< "File  : " << oniRecorder.getCurrentFileName() << endl
 	<< "FPS   : " << ofToString(ofGetFrameRate()) << "  " << statusHardware << endl;
 
-	ofDrawBitmapString(msg.str(), 20, 560);
+	ofDrawBitmapString(msg.str(), 20, 20);
 
 }
 
@@ -284,26 +203,6 @@ void testApp::keyPressed(int key){
 			hardware.setTiltAngle(hardware.tilt_angle--);
 			break;
 #endif
-		case 's':
-		case 'S':
-			if (isRecording) {
-				oniRecorder.stopRecord();
-				isRecording = false;
-				break;
-			} else {
-				oniRecorder.startRecord(generateFileName());
-				isRecording = true;
-				break;
-			}
-			break;
-		case 'p':
-		case 'P':
-			if (oniRecorder.getCurrentFileName() != "" && !isRecording && isLive) {
-				setupPlayback(oniRecorder.getCurrentFileName());
-				isLive = false;
-			} else {
-				isLive = true;
-			}
 			break;
 		case 't':
 		case 'T':
@@ -312,79 +211,24 @@ void testApp::keyPressed(int key){
 		case 'h':
 		case 'H':
 			isTrackingHands = !isTrackingHands;
-			if(isLive) recordHandTracker.toggleTrackHands();
-			if(!isLive) playHandTracker.toggleTrackHands();
 			break;
 		case 'f':
 		case 'F':
 			isFiltering = !isFiltering;
-			recordHandTracker.isFiltering = isFiltering;
-			playHandTracker.isFiltering = isFiltering;
 			break;
 		case 'm':
 		case 'M':
 			isMasking = !isMasking;
-			recordUser.setUseMaskPixels(isMasking);
-			playUser.setUseMaskPixels(isMasking);
 			break;
 		case 'c':
 		case 'C':
 			isCloud = !isCloud;
-			recordUser.setUseCloudPoints(isCloud);
-			playUser.setUseCloudPoints(isCloud);
 			break;
 		case 'b':
 		case 'B':
 			isCPBkgnd = !isCPBkgnd;
 			break;
-		case '9':
-		case '(':
-			smooth = recordUser.getSmoothing();
-			if (smooth - 0.1f > 0.0f) {
-				recordUser.setSmoothing(smooth - 0.1f);
-				playUser.setSmoothing(smooth - 0.1f);
-			}
-			break;
 		case '0':
-		case ')':
-			smooth = recordUser.getSmoothing();
-			if (smooth + 0.1f <= 1.0f) {
-				recordUser.setSmoothing(smooth + 0.1f);
-				playUser.setSmoothing(smooth + 0.1f);
-			}
-			break;
-		case '[':
-		//case '{':
-			if (filterFactor - 0.1f > 0.0f) {
-				filterFactor = filterFactor - 0.1f;
-				recordHandTracker.setFilterFactors(filterFactor);
-				if (oniRecorder.getCurrentFileName() != "") playHandTracker.setFilterFactors(filterFactor);
-			}
-			break;
-		case ']':
-		//case '}':
-			if (filterFactor + 0.1f <= 1.0f) {
-				filterFactor = filterFactor + 0.1f;
-				recordHandTracker.setFilterFactors(filterFactor);
-				if (oniRecorder.getCurrentFileName() != "") playHandTracker.setFilterFactors(filterFactor);
-			}
-			break;
-		case ';':
-		case ':':
-			smooth = recordHandTracker.getSmoothing();
-			if (smooth - 0.1f > 0.0f) {
-				recordHandTracker.setSmoothing(smooth -  0.1f);
-				playHandTracker.setSmoothing(smooth -  0.1f);
-			}
-			break;
-		case '\'':
-		case '\"':
-			smooth = recordHandTracker.getSmoothing();
-			if (smooth + 0.1f <= 1.0f) {
-				recordHandTracker.setSmoothing(smooth +  0.1f);
-				playHandTracker.setSmoothing(smooth +  0.1f);
-			}
-			break;
 		case '>':
 		case '.':
 			farThreshold += 50;
@@ -415,22 +259,6 @@ void testApp::keyPressed(int key){
 	}
 }
 
-string testApp::generateFileName() {
-
-	string _root = "kinectRecord";
-
-	string _timestamp = ofToString(ofGetDay()) +
-	ofToString(ofGetMonth()) +
-	ofToString(ofGetYear()) +
-	ofToString(ofGetHours()) +
-	ofToString(ofGetMinutes()) +
-	ofToString(ofGetSeconds());
-
-	string _filename = (_root + _timestamp + ".oni");
-
-	return _filename;
-
-}
 
 //--------------------------------------------------------------
 void testApp::keyReleased(int key){

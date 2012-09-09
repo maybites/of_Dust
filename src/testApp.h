@@ -5,6 +5,8 @@
 
 #include "ofxOpenNI.h"
 #include "ofMain.h"
+#include "ofxSyphon.h"
+
 
 class testApp : public ofBaseApp{
 
@@ -39,12 +41,11 @@ public:
 
 	ofxHandGenerator	recordHandTracker, playHandTracker;
 
-	ofxUserGenerator	recordUser, playUser;
-	ofxOpenNIRecorder	oniRecorder;
-
 #if defined (TARGET_OSX) //|| defined(TARGET_LINUX) // only working on Mac/Linux at the moment (but on Linux you need to run as sudo...)
 	ofxHardwareDriver	hardware;
 #endif
+
+    ofxSyphonServer syphonServer;
 
 	void				drawMasks();
 	void				drawPointCloud(ofxUserGenerator * user_generator, int userID);
