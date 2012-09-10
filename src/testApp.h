@@ -6,8 +6,9 @@
 #include "ofxOpenNI.h"
 #include "ofMain.h"
 #include "ofxSyphon.h"
+#include "ofxCv.h"
 
-
+#define N_PREVCAPTURES 5
 class testApp : public ofBaseApp{
 
 public:
@@ -46,6 +47,9 @@ public:
 #endif
 
     ofxSyphonServer syphonServer;
+
+    ofPixels previous[N_PREVCAPTURES];
+    ofImage diff;
 
 	void				drawMasks();
 	void				drawPointCloud(ofxUserGenerator * user_generator, int userID);

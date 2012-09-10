@@ -1,5 +1,8 @@
 #include "testApp.h"
 
+using namespace cv;
+using namespace ofxCv;
+
 //--------------------------------------------------------------
 void testApp::setup() {
 
@@ -22,7 +25,6 @@ void testApp::setup() {
 	ofBackground(0, 0, 0);
 
     syphonServer.setName("KinectDepth");
-
 }
 
 void testApp::setupRecording(string _filename) {
@@ -43,6 +45,13 @@ void testApp::setupRecording(string _filename) {
 
 	recordContext.toggleRegisterViewport();
 	recordContext.toggleMirror();
+    
+    // so they have the same size and type as cam
+    for(int i = 0; i < N_PREVCAPTURES; i++){
+        previous[i].allocate(recordDepth.getWidth(), recordDepth.getHeight(), OF_IMAGE_GRAYSCALE);
+    }
+    diff.allocate(recordDepth.getWidth(), recordDepth.getHeight(), OF_IMAGE_GRAYSCALE);
+
 }
 
 //--------------------------------------------------------------
@@ -63,7 +72,21 @@ void testApp::update(){
 		depthRangeMask.setFromPixels(recordDepth.getDepthPixels(nearThreshold, farThreshold),
 									 recordDepth.getWidth(), recordDepth.getHeight(), OF_IMAGE_GRAYSCALE);
 
+        // take the absolute difference of prev and cam and save it inside diff
+		//absdiff(previous, depthRangeMask, diff);
+
+        for(int i = 1; i < N_PREVCAPTURES; i++){
+            previous[i] =  previous[i-1];
+            add(previous[i], depthRangeMask, previous[i]);
+        }
+        copy(previous[N_PREVCAPTURES-1], diff);
+        diff.update();
+		
+		// like ofSetPixels, but more concise and cross-toolkit
+		copy(depthRangeMask, previous[0]);
+
 	}
+
 }
 
 //--------------------------------------------------------------
@@ -72,14 +95,16 @@ void testApp::draw(){
 	ofSetColor(255, 255, 255);
 
 	glPushMatrix();
-	glScalef(0.75, 0.75, 0.75);
 
 	if (isLive) {
 
 		//recordDepth.draw(0,0,640,480);
 		//recordImage.draw(640, 0, 640, 480);
 
-		depthRangeMask.draw(0, 0, 640, 480);	// can use this with openCV to make masks, find contours etc when not dealing with openNI 'User' like objects
+		depthRangeMask.draw(320, 240, 320, 240);	// can use this with openCV to make masks, find contours etc when not dealing with openNI 'User' like objects
+        
+        diff.draw(0, 240, 320, 240);
+
 
         //only show the kinect mask without the rest
         syphonServer.publishScreen();
