@@ -8,7 +8,7 @@ void testApp::setup() {
 
 	isLive			= true;
 	isTracking		= false;
-	isTrackingHands	= true;
+	isTrackingHands	= false;
 	isFiltering		= false;
 	isRecording		= false;
 	isCloud			= false;
@@ -19,12 +19,18 @@ void testApp::setup() {
 	farThreshold  = 3000;
 
 	filterFactor = 0.1f;
+    
+    // open an outgoing connection to HOST:PORT
+	sender.setup( HOST, PORT );
 
 	setupRecording();
 
 	ofBackground(0, 0, 0);
 
     syphonServer.setName("KinectDepth");
+
+	contourFinder.setMinAreaRadius(8);
+	contourFinder.setMaxAreaRadius(40);
 }
 
 void testApp::setupRecording(string _filename) {
@@ -51,6 +57,7 @@ void testApp::setupRecording(string _filename) {
         previous[i].allocate(recordDepth.getWidth(), recordDepth.getHeight(), OF_IMAGE_GRAYSCALE);
     }
     diff.allocate(recordDepth.getWidth(), recordDepth.getHeight(), OF_IMAGE_GRAYSCALE);
+    invert.allocate(recordDepth.getWidth(), recordDepth.getHeight(), OF_IMAGE_COLOR);
 
 }
 
@@ -72,19 +79,51 @@ void testApp::update(){
 		depthRangeMask.setFromPixels(recordDepth.getDepthPixels(nearThreshold, farThreshold),
 									 recordDepth.getWidth(), recordDepth.getHeight(), OF_IMAGE_GRAYSCALE);
 
+        depthRangeMask.mirror(false, true);
         // take the absolute difference of prev and cam and save it inside diff
 		//absdiff(previous, depthRangeMask, diff);
 
-        for(int i = 1; i < N_PREVCAPTURES; i++){
+        for(int i = N_PREVCAPTURES-1; i > 0; i--){
             previous[i] =  previous[i-1];
             add(previous[i], depthRangeMask, previous[i]);
         }
-        copy(previous[N_PREVCAPTURES-1], diff);
+        copy(depthRangeMask, previous[0]);
+        
+        prev = previous[N_PREVCAPTURES-1];
+        
+        copy(prev, invert);
+        invert.update();
+        //invert the image
+        int i = 0;
+        while ( i < invert.getPixelsRef().size() ) {
+            invert.getPixelsRef()[i] = 255 - invert.getPixelsRef()[i];
+            i++;
+        }
+        invert.update();
+        //invert.mirror(true, false);
+        
+        absdiff(previous[N_PREVCAPTURES-1], previous[N_PREVCAPTURES-2], diff);
         diff.update();
 		
-		// like ofSetPixels, but more concise and cross-toolkit
-		copy(depthRangeMask, previous[0]);
+		contourFinder.setThreshold(200);
+		contourFinder.findContours(diff);
+        
+		int n = contourFinder.size();
+		for(int i = 0; i < n; i++) {
+            cv::Point2f center = contourFinder.getCentroid(i);
+            cv::Point2f velocity = contourFinder.getVelocity(i);
+           
+            
+            ofxOscMessage m;
+            m.setAddress( "/gust" );
+            m.addIntArg( i );
+            m.addIntArg( center.x );
+            m.addIntArg( center.y );
+            m.addIntArg( velocity.x );
+            m.addIntArg( velocity.y );
+            sender.sendMessage( m );
 
+        }
 	}
 
 }
@@ -101,13 +140,25 @@ void testApp::draw(){
 		//recordDepth.draw(0,0,640,480);
 		//recordImage.draw(640, 0, 640, 480);
 
-		depthRangeMask.draw(320, 240, 320, 240);	// can use this with openCV to make masks, find contours etc when not dealing with openNI 'User' like objects
-        
+		depthRangeMask.draw(0, 0, 320, 240);	// can use this with openCV to make masks, find contours etc when not dealing with openNI 'User' like objects
+
+        prev.draw(320, 0, 320, 240);
+
         diff.draw(0, 240, 320, 240);
+                
+        invert.draw(320, 240, 320, 240);
 
+        ofSetLineWidth(2);
+        ofSetColor(255, 0, 0);
+        contourFinder.draw();
+        ofSetColor(0, 0, 255);
+  		int n = contourFinder.size();
+		for(int i = 0; i < n; i++) {
+            cv::Point2f center = contourFinder.getCentroid(i);
+            ofCircle(center.x, center.y, 3);
+        }
 
-        //only show the kinect mask without the rest
-        syphonServer.publishScreen();
+        syphonServer.publishTexture(&invert.getTextureReference());
 
 		if (isTracking) {
 

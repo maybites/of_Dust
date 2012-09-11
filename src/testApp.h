@@ -7,6 +7,10 @@
 #include "ofMain.h"
 #include "ofxSyphon.h"
 #include "ofxCv.h"
+#include "ofxOSC.h"
+
+#define HOST "localhost"
+#define PORT 12345
 
 #define N_PREVCAPTURES 5
 class testApp : public ofBaseApp{
@@ -45,12 +49,24 @@ public:
 #if defined (TARGET_OSX) //|| defined(TARGET_LINUX) // only working on Mac/Linux at the moment (but on Linux you need to run as sudo...)
 	ofxHardwareDriver	hardware;
 #endif
-
+    //Syhon
     ofxSyphonServer syphonServer;
 
+    //Difference and Smooting
     ofPixels previous[N_PREVCAPTURES];
     ofImage diff;
+    ofImage prev;
+    ofImage invert;
 
+    //CountourFinder
+    ofxCv::ContourFinder contourFinder;
+	vector< vector<cv::Point> > quads;
+
+    //OSC
+    ofxOscSender sender;
+    
+
+    
 	void				drawMasks();
 	void				drawPointCloud(ofxUserGenerator * user_generator, int userID);
 
