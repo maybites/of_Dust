@@ -15,8 +15,8 @@ void testApp::setup() {
 	isCPBkgnd		= true;
 	isMasking		= true;
 
-	nearThreshold = 2000;
-	farThreshold  = 3000;
+	nearThreshold = 1500;
+	farThreshold  = 1800;
 
 	filterFactor = 0.1f;
     
@@ -31,6 +31,11 @@ void testApp::setup() {
 
 	contourFinder.setMinAreaRadius(8);
 	contourFinder.setMaxAreaRadius(40);
+    
+    ofxOscMessage m;
+    m.setAddress( "/kinectstarted" );
+    sender.sendMessage( m );
+
 }
 
 void testApp::setupRecording(string _filename) {
@@ -58,6 +63,7 @@ void testApp::setupRecording(string _filename) {
     }
     diff.allocate(recordDepth.getWidth(), recordDepth.getHeight(), OF_IMAGE_GRAYSCALE);
     invert.allocate(recordDepth.getWidth(), recordDepth.getHeight(), OF_IMAGE_COLOR);
+    detect.allocate(recordDepth.getWidth(), recordDepth.getHeight(), OF_IMAGE_GRAYSCALE);
 
 }
 
@@ -104,6 +110,7 @@ void testApp::update(){
         
         absdiff(previous[N_PREVCAPTURES-1], previous[N_PREVCAPTURES-2], diff);
         diff.update();
+               
 		
 		contourFinder.setThreshold(200);
 		contourFinder.findContours(diff);
@@ -112,7 +119,16 @@ void testApp::update(){
 		for(int i = 0; i < n; i++) {
             cv::Point2f center = contourFinder.getCentroid(i);
             cv::Point2f velocity = contourFinder.getVelocity(i);
-           
+        
+            if(center.x > diff.getWidth() * 0.3 &&
+               center.x < diff.getWidth() * 0.7 &&
+               center.y < diff.getHeight() * 0.5){
+                ofxOscMessage m;
+                m.setAddress( "/persondetected" );
+                sender.sendMessage( m );
+                ofLogWarning("sent person detected");
+            }
+
             
             ofxOscMessage m;
             m.setAddress( "/gust" );

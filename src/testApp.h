@@ -57,6 +57,7 @@ public:
     ofImage diff;
     ofImage prev;
     ofImage invert;
+    ofImage detect;
 
     //CountourFinder
     ofxCv::ContourFinder contourFinder;
