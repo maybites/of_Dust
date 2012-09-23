@@ -15,8 +15,8 @@ void testApp::setup() {
 	isCPBkgnd		= true;
 	isMasking		= true;
 
-	nearThreshold = 1500;
-	farThreshold  = 1800;
+	nearThreshold = 1900;
+	farThreshold  = 3500;
 
 	filterFactor = 0.1f;
     
@@ -29,7 +29,7 @@ void testApp::setup() {
 
     syphonServer.setName("KinectDepth");
 
-	contourFinder.setMinAreaRadius(8);
+	contourFinder.setMinAreaRadius(4);
 	contourFinder.setMaxAreaRadius(40);
     
     ofxOscMessage m;
@@ -110,26 +110,39 @@ void testApp::update(){
         
         absdiff(previous[N_PREVCAPTURES-1], previous[N_PREVCAPTURES-2], diff);
         diff.update();
-               
-		
+ 		
 		contourFinder.setThreshold(200);
 		contourFinder.findContours(diff);
+ 
+        i = 0;
+        bool flagPerson = false;
+        int x, y;
+        while ( i < diff.getPixelsRef().size() ) {
+            x = i - (int)(i / diff.getWidth()) * diff.getWidth();
+            y = i / diff.getWidth();
+            if(x > diff.getWidth() * 0.3 &&
+               x < diff.getWidth() * 0.7 &&
+               y < diff.getHeight() * 0.5){
+                if( diff.getPixelsRef()[i] == 255){
+                    flagPerson = true;
+                }
+                diff.getPixelsRef()[i] = 255 - diff.getPixelsRef()[i];
+            }
+            i++;
+        }
+        diff.update();
+        if(flagPerson){
+            ofxOscMessage m;
+            m.setAddress( "/persondetected" );
+            sender.sendMessage( m );
+            ofLogWarning("sent person detected");
+        }
         
 		int n = contourFinder.size();
 		for(int i = 0; i < n; i++) {
             cv::Point2f center = contourFinder.getCentroid(i);
             cv::Point2f velocity = contourFinder.getVelocity(i);
         
-            if(center.x > diff.getWidth() * 0.3 &&
-               center.x < diff.getWidth() * 0.7 &&
-               center.y < diff.getHeight() * 0.5){
-                ofxOscMessage m;
-                m.setAddress( "/persondetected" );
-                sender.sendMessage( m );
-                ofLogWarning("sent person detected");
-            }
-
-            
             ofxOscMessage m;
             m.setAddress( "/gust" );
             m.addIntArg( i );
